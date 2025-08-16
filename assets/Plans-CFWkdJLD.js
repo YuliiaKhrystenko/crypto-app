@@ -1,0 +1,1 @@
+import{w as t,o as n}from"./index-BUPxJZ47.js";import{I as s,N as a,O as _,h as r,J as c}from"./vendor-vue-B5XabL2Y.js";const i={},l={class:"px-4"};function d(m,e){const o=n;return c(),s("div",l,[a(o,{title:"Plans",size:"large"},{default:_(()=>e[0]||(e[0]=[r(" Coming soon… ",-1)])),_:1,__:[0]})])}const u=t(i,[["render",d]]);export{u as default};

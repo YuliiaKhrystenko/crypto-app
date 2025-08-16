@@ -1,0 +1,1 @@
+import{w as e,o as n}from"./index-BUPxJZ47.js";import{I as s,N as r,O as _,h as a,J as c}from"./vendor-vue-B5XabL2Y.js";const i={},l={class:"px-4"};function f(d,o){const t=n;return c(),s("div",l,[r(t,{title:"Portfolio",size:"large"},{default:_(()=>o[0]||(o[0]=[a(" Coming soon… ",-1)])),_:1,__:[0]})])}const u=e(i,[["render",f]]);export{u as default};

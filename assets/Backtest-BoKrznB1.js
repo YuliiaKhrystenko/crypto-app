@@ -1,0 +1,1 @@
+import{w as o,o as s}from"./index-BUPxJZ47.js";import{I as n,N as a,O as c,h as _,J as r}from"./vendor-vue-B5XabL2Y.js";const i={},d={class:"px-4"};function l(m,t){const e=s;return r(),n("div",d,[a(e,{title:"Backtest",size:"large"},{default:c(()=>t[0]||(t[0]=[_(" Coming soon… ",-1)])),_:1,__:[0]})])}const u=o(i,[["render",l]]);export{u as default};
