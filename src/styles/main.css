@@ -1,0 +1,14 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --container-w: 1200px;
+}
+.n-layout-header,
+.n-layout-footer {
+  background: transparent;
+}
+.router-link-active .n-button {
+  color: var(--n-primary-color);
+}
