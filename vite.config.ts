@@ -38,7 +38,14 @@ export default defineConfig(({ mode }) => {
   ]
 
   if (mode === 'analyze') {
-    plugins.push(visualizer({ filename: 'stats.html', open: false }) as PluginOption)
+    plugins.push(
+      visualizer({
+        filename: 'reports/bundle/stats.html',
+        open: false,
+        gzipSize: true,
+        brotliSize: true,
+      }) as PluginOption
+    )
   }
 
   return {
