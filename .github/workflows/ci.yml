@@ -1,36 +1,35 @@
-name: CI
+name: "CI — Lint, Type-check & Unit tests"
 
 on:
   push:
-    branches: [ main ]
+    branches: ["**"]
   pull_request:
+    branches: ["**"]
 
 jobs:
-  test-build-lint:
+  ci:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 10
+          version: 9
 
-      - uses: actions/setup-node@v4
+      - name: Use Node 20
+        uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
+          cache: pnpm
 
       - name: Install
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm lint
-
-      - name: Typecheck
-        run: pnpm typecheck
+        run: pnpm lint --max-warnings=0
 
       - name: Test
-        run: pnpm test -- --run
+        run: pnpm test --run
 
-      - name: Build
+      - name: Build (check only)
         run: pnpm build

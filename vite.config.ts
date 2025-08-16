@@ -7,6 +7,10 @@ import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { NaiveUiResolver } from 'unplugin-vue-components/resolvers'
 
+const repoName = process.env.GITHUB_REPOSITORY?.split('/')[1] ?? 'crypto-app'
+const isCI = process.env.GITHUB_ACTIONS === 'true'
+const base = isCI ? `/${repoName}/` : '/'
+
 export default defineConfig(({ mode }) => {
   const plugins: PluginOption[] = [
     vue(),
@@ -49,6 +53,7 @@ export default defineConfig(({ mode }) => {
   }
 
   return {
+    base,
     plugins,
     resolve: {
       alias: {
