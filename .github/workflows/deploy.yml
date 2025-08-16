@@ -1,4 +1,4 @@
-name: "CD — Deploy to GitHub Pages"
+name: "CD"
 
 on:
   push:

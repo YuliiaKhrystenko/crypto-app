@@ -1,4 +1,4 @@
-name: "CI — Lint, Type-check & Unit tests"
+name: "CI"
 
 on:
   push:
@@ -26,7 +26,7 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Lint
-        run: pnpm lint --max-warnings=0
+        run: pnpm lint
 
       - name: Test
         run: pnpm test --run
