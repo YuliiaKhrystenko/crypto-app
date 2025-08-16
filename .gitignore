@@ -11,6 +11,10 @@ node_modules
 dist
 dist-ssr
 *.local
+.vite/
+.env*
+coverage/
+stats.html
 
 # Editor directories and files
 .vscode/*
@@ -22,3 +26,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# build reports
+stats.html
+reports/
+stats-*.html
