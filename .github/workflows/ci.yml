@@ -28,8 +28,11 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      - name: Typecheck
+        run: pnpm typecheck
+
       - name: Test
-        run: pnpm test --run
+        run: pnpm test
 
       - name: Build (check only)
         run: pnpm build
