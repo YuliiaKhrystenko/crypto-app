@@ -13,6 +13,8 @@ export default defineConfig({
     css: true,
     passWithNoTests: true,
     coverage: { provider: 'v8', reporter: ['text', 'html'] },
+    setupFiles: ['src/vitest.setup.ts'],
+    clearMocks: true,
   },
   resolve: {
     alias: {
