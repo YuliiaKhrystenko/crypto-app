@@ -1,12 +1,29 @@
 // src/router/index.ts
-import { createRouter, createWebHistory } from 'vue-router'
+import { createRouter, createWebHistory, type RouteRecordRaw } from 'vue-router'
+import { dcaRoutes } from '@modules/dca/routes'
+
+const baseRoutes: RouteRecordRaw[] = [
+  {
+    path: '/',
+    name: 'home',
+    component: () => import('../pages/Home.vue'),
+    meta: { public: true },
+  },
+  {
+    path: '/portfolio',
+    name: 'portfolio',
+    component: () => import('../pages/Portfolio.vue'),
+  },
+  {
+    path: '/:pathMatch(.*)*',
+    name: 'not-found',
+    component: () => import('../pages/NotFound.vue'),
+    meta: { public: true },
+  },
+]
 
 export const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
-  routes: [
-    { path: '/', component: () => import('../pages/Home.vue') },
-    { path: '/plans', component: () => import('../pages/Plans.vue') },
-    { path: '/backtest', component: () => import('../pages/Backtest.vue') },
-    { path: '/portfolio', component: () => import('../pages/Portfolio.vue') },
-  ],
+  routes: [...baseRoutes, ...dcaRoutes],
+  scrollBehavior: () => ({ top: 0 }),
 })
