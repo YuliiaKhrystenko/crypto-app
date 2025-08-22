@@ -13,7 +13,9 @@
     "lint": "eslint . --ext .ts,.vue --report-unused-disable-directives --max-warnings=0",
     "lint:fix": "eslint . --ext .ts,.vue --fix",
     "format": "prettier --write .",
-    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json"
+    "typecheck": "vue-tsc --noEmit -p tsconfig.app.json",
+    "check": "pnpm lint && pnpm typecheck && pnpm test",
+    "ci:local": "pnpm check && pnpm build"
   },
   "lint-staged": {
     "*.{js,ts,vue}": [
@@ -46,6 +48,7 @@
     "autoprefixer": "^10.4.21",
     "eslint": "^9",
     "eslint-plugin-vue": "^10.4.0",
+    "fake-indexeddb": "^6.1.0",
     "globals": "^16.3.0",
     "husky": "^9.1.7",
     "jsdom": "^26.1.0",

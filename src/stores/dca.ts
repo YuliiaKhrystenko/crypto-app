@@ -1,43 +1,16 @@
 // src/stores/dca.ts
 import { defineStore } from 'pinia'
-import { openDB, type DBSchema, type IDBPDatabase } from 'idb'
-import {
-  zDcaPlanInput, zDcaPlan,
-  type DcaPlan, type DcaPlanInput, type DcaPlanPatch
-} from '../types/dca'
+import type { DcaPlan, DcaPlanInput, DcaPlanPatch } from '../types/dca'
+import { zDcaPlan, zDcaPlanInput } from '../types/dca'
+import { getDB, STORE } from './dca.db'
 
-interface CoachDB extends DBSchema {
-  plans: {
-    key: string
-    value: DcaPlan
-    indexes: {
-      'by-active': 0 | 1
-      'by-createdAt': number
-    }
+export class ConcurrencyError extends Error {
+  constructor(public planId: string) {
+    super('Plan was updated in another tab')
+    this.name = 'ConcurrencyError'
   }
 }
 
-const DB_NAME = 'dca-coach'
-const DB_VERSION = 1
-const STORE = 'plans'
-
-let _db: Promise<IDBPDatabase<CoachDB>> | null = null
-async function db() {
-  if (!_db) {
-    _db = openDB<CoachDB>(DB_NAME, DB_VERSION, {
-      upgrade(db) {
-        if (!db.objectStoreNames.contains(STORE)) {
-          const s = db.createObjectStore(STORE, { keyPath: 'id' })
-          s.createIndex('by-active', 'active')   
-          s.createIndex('by-createdAt', 'createdAt')
-        }
-      }
-    })
-  }
-  return _db
-}
-
-/** DCA store */
 export const useDcaStore = defineStore('dca', {
   state: () => ({
     isReady: false as boolean,
@@ -50,10 +23,11 @@ export const useDcaStore = defineStore('dca', {
   },
 
   actions: {
+    /** Init **/
     async init(): Promise<void> {
       if (this.isReady) return
       try {
-        const d = await db()
+        const d = await getDB()
         const rows = await d.getAll(STORE)
         const valid = rows.map(r => zDcaPlan.parse(r))
         this.$patch({ plans: valid, isReady: true })
@@ -63,69 +37,90 @@ export const useDcaStore = defineStore('dca', {
       }
     },
 
-    // Add new plan
+    /** Add Plan */
     async addPlan(input: DcaPlanInput): Promise<string> {
       const parsed = zDcaPlanInput.parse(input)
+      const now = Date.now()
 
       const plan: DcaPlan = {
         ...parsed,
         id: crypto.randomUUID(),
         active: parsed.active ?? true,
-        createdAt: Date.now(),
-        updatedAt: Date.now(),
+        createdAt: now,
+        updatedAt: now,
       }
 
-      const d = await db()
+      const d = await getDB()
       await d.put(STORE, plan)
 
       this.plans = [...this.plans, plan]
       return plan.id
     },
 
-    // Update existing plan
+    /** Update Plan **/
     async updatePlan(id: string, patch: DcaPlanPatch): Promise<void> {
       const idx = this.plans.findIndex(p => p.id === id)
       if (idx < 0) throw new Error('Plan not found')
 
       const current = this.plans[idx]!
-      const parsed = zDcaPlanInput.partial().parse(patch)
+      const parsedPatch = zDcaPlanInput.partial().parse(patch)
+
+      const d = await getDB()
+      const fresh = await d.get(STORE, id)
+      if (fresh && fresh.updatedAt > current.updatedAt) {
+        throw new ConcurrencyError(id)
+      }
 
       const updated: DcaPlan = {
         ...current,
-        asset:     parsed.asset     ?? current.asset,
-        amount:    parsed.amount    ?? current.amount,
-        period:    parsed.period    ?? current.period,
-        startDate: parsed.startDate ?? current.startDate,
-        feePct:    parsed.feePct    ?? current.feePct,
-        feeFlat:   parsed.feeFlat   ?? current.feeFlat,
-        active:    parsed.active    ?? current.active,
+        asset:     parsedPatch.asset     ?? current.asset,
+        amount:    parsedPatch.amount    ?? current.amount,
+        period:    parsedPatch.period    ?? current.period,
+        startDate: parsedPatch.startDate ?? current.startDate,
+        feePct:    parsedPatch.feePct    ?? current.feePct,
+        feeFlat:   parsedPatch.feeFlat   ?? current.feeFlat,
+        active:    parsedPatch.active    ?? current.active,
         updatedAt: Date.now(),
       }
 
-      const d = await db()
       await d.put(STORE, updated)
-
       this.$patch(s => { s.plans[idx] = updated })
     },
 
-    // Remove existing plan
+    /** Toggle Active **/
+    async toggleActive(id: string): Promise<void> {
+      const p = this.planById(id)
+      if (!p) throw new Error('Plan not found')
+      await this.updatePlan(id, { active: !p.active })
+    },
+
+    /** Delete plan **/
     async removePlan(id: string): Promise<void> {
-      const d = await db()
+      const d = await getDB()
       await d.delete(STORE, id)
       this.plans = this.plans.filter(p => p.id !== id)
     },
 
-    // Import/migration
+    /** Import/Export **/
     async setAll(plans: DcaPlan[]): Promise<void> {
       const validated = plans.map(p => zDcaPlan.parse(p))
 
-      const d = await db()
+      const d = await getDB()
       const tx = d.transaction(STORE, 'readwrite')
       await tx.store.clear()
       for (const p of validated) await tx.store.put(p)
       await tx.done
 
       this.$patch({ plans: validated.slice() })
+    },
+
+    /** Test **/
+    async reset(): Promise<void> {
+      const d = await getDB()
+      const tx = d.transaction(STORE, 'readwrite')
+      await tx.store.clear()
+      await tx.done
+      this.$patch({ plans: [] })
     },
   },
 })
