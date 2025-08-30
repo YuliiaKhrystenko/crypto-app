@@ -1,13 +1,32 @@
 <!-- src/modules/dca/pages/Plans.vue -->
 <template>
   <div class="page">
-    <n-page-header title="DCA Plans">
+    <n-page-header>
+      <template #title>
+        DCA Plans
+      </template>
       <template #extra>
-        <n-button type="primary" @click="openCreate">New plan</n-button>
+        <n-space align="center" :size="8">
+          <n-tag :bordered="false" size="small">{{ store.plans.length }} plans</n-tag>
+          <n-button type="primary" @click="openCreate">New plan</n-button>
+        </n-space>
       </template>
     </n-page-header>
 
-    <n-empty v-if="isEmpty" description="No plans yet">
+    <n-grid v-if="!store.isReady" cols="1 s:2 m:3" :x-gap="12" :y-gap="12">
+      <n-grid-item v-for="i in 6" :key="i">
+        <n-card :bordered="true" size="small">
+          <n-skeleton text style="width: 35%; margin-bottom: 6px" />
+          <n-skeleton text :repeat="2" />
+          <n-space justify="space-between" align="center" style="margin-top: 8px">
+            <n-skeleton text style="width: 72px" />
+            <n-skeleton text style="width: 140px" />
+          </n-space>
+        </n-card>
+      </n-grid-item>
+    </n-grid>
+
+    <n-empty v-else-if="isEmpty" description="No plans yet">
       <template #extra>
         <n-button type="primary" @click="openCreate">Create first plan</n-button>
       </template>
@@ -15,24 +34,50 @@
 
     <n-grid v-else cols="1 s:2 m:3" :x-gap="12" :y-gap="12">
       <n-grid-item v-for="p in store.plans" :key="p.id">
-        <n-card :title="p.asset" :bordered="true" size="small">
-          <n-space vertical size="small">
-            <div class="muted">Amount: <b>{{ p.amount }}</b></div>
-            <div class="muted">Period: <b>{{ p.period }}</b></div>
-            <div class="muted">Start: <b>{{ p.startDate }}</b></div>
-            <div class="muted">Fees: <b>{{ p.feePct }}% + {{ p.feeFlat }}</b></div>
-
-            <n-space justify="space-between" align="center">
-              <n-tag :type="p.active ? 'success' : 'default'">
+        <n-card :bordered="true" size="small">
+          <template #header>
+            <n-space align="center" justify="space-between" style="width: 100%">
+              <div class="title">{{ p.asset }}</div>
+              <n-tag :type="p.active ? 'success' : 'default'" size="small" :bordered="false">
                 {{ p.active ? 'Active' : 'Paused' }}
               </n-tag>
-              <n-space>
-                <n-switch :value="p.active" :round="false" @update:value="toggle(p)">
+            </n-space>
+          </template>
+
+          <n-space vertical size="small">
+            <div class="muted">
+              Amount:
+              <b>{{ fmtAmount(p.amount) }}</b>
+            </div>
+            <div class="muted">
+              Period:
+              <b>{{ periodLabel(p.period) }}</b>
+            </div>
+            <div class="muted">
+              Start:
+              <b>{{ fmtDate(p.startDate) }}</b>
+            </div>
+            <div class="muted">
+              Fees:
+              <b>{{ fmtFee(p.feePct, p.feeFlat) }}</b>
+            </div>
+
+            <n-space justify="space-between" align="center" style="margin-top: 6px">
+              <n-space :size="8" align="center">
+                <n-switch :value="p.active" :round="false" aria-label="Toggle active" @update:value="toggle(p)">
                   <template #checked>On</template>
                   <template #unchecked>Off</template>
                 </n-switch>
+              </n-space>
+
+              <n-space :size="8">
                 <n-button size="small" @click="openEdit(p)">Edit</n-button>
-                <n-button size="small" tertiary type="error" @click="askRemove(p)">Delete</n-button>
+                <n-popconfirm positive-text="Delete" negative-text="Cancel" :show-icon="false" @positive-click="remove(p.id)">
+                  <template #trigger>
+                    <n-button size="small" tertiary type="error">Delete</n-button>
+                  </template>
+                  Remove <b>{{ p.asset }}</b> plan permanently?
+                </n-popconfirm>
               </n-space>
             </n-space>
           </n-space>
@@ -42,18 +87,8 @@
 
     <RouterView style="display:none" />
 
-    <n-modal
-      v-model:show="showModal"
-      preset="card"
-      :title="editing ? 'Edit plan' : 'New plan'"
-      style="max-width: 520px"
-    >
-      <PlanForm
-        :initial="editing ?? null"
-        :submitting="submitting"
-        @cancel="closeModal"
-        @submit="onSubmit"
-      />
+    <n-modal v-model:show="showModal" preset="card" :title="editing ? 'Edit plan' : 'New plan'" style="max-width: 520px">
+      <PlanForm :initial="editing ?? null" :submitting="submitting" @cancel="closeModal" @submit="onSubmit" />
     </n-modal>
   </div>
 </template>
@@ -62,8 +97,9 @@
 import { onMounted, ref, computed, watchEffect } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
 import {
-  useMessage, useDialog,
-  NButton, NCard, NEmpty, NGrid, NGridItem, NModal, NPageHeader, NSpace, NSwitch, NTag
+  useMessage,
+  NButton, NCard, NEmpty, NGrid, NGridItem, NModal, NPageHeader, NSpace, NSwitch, NTag,
+  NSkeleton, NPopconfirm
 } from 'naive-ui'
 import { useDcaStore } from '@stores/dca'
 import PlanForm from '../components/PlanForm.vue'
@@ -73,7 +109,6 @@ const route = useRoute()
 const router = useRouter()
 const store = useDcaStore()
 const message = useMessage()
-const dialog = useDialog()
 
 const submitting = ref(false)
 const editing = ref<DcaPlan | null>(null)
@@ -114,7 +149,6 @@ async function openCreate() {
 async function openEdit(p: DcaPlan) {
   await router.push({ name: 'plan-edit', params: { id: p.id } })
 }
-
 function closeModal() {
   showModal.value = false
 }
@@ -146,21 +180,41 @@ async function toggle(p: DcaPlan) {
   }
 }
 
-function askRemove(p: DcaPlan) {
-  dialog.warning({
-    title: 'Delete plan?',
-    content: `Remove ${p.asset} plan permanently?`,
-    positiveText: 'Delete',
-    negativeText: 'Cancel',
-    onPositiveClick: async () => {
-      await store.removePlan(p.id)
-      message.success('Deleted')
-    },
-  })
+async function remove(id: string) {
+  await store.removePlan(id)
+  message.success('Deleted')
+}
+
+const amountFmt = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
+function fmtAmount(n: number) {
+  return amountFmt.format(n ?? 0)
+}
+function periodLabel(p: string) {
+  return p === 'weekly' ? 'Weekly' : p === 'monthly' ? 'Monthly' : p
+}
+function fmtDate(s?: string | null) {
+  if (!s) return '—'
+  return new Date(`${s}T00:00:00`).toLocaleDateString()
+}
+function fmtFee(pct?: number, flat?: number) {
+  const pctPart = `${pct ?? 0}%`
+  const flatPart = amountFmt.format(flat ?? 0)
+  return `${pctPart} + ${flatPart}`
 }
 </script>
 
 <style scoped>
-.page { padding: 12px; }
-.muted { color: var(--naive-text-color-3); font-size: 12px; }
+.page {
+  padding: 12px;
+}
+
+.title {
+  font-weight: 600;
+  letter-spacing: .2px;
+}
+
+.muted {
+  color: var(--naive-text-color-3);
+  font-size: 12px;
+}
 </style>
