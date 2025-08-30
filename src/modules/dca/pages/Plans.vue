@@ -2,9 +2,7 @@
 <template>
   <div class="page">
     <n-page-header>
-      <template #title>
-        DCA Plans
-      </template>
+      <template #title>DCA Plans</template>
       <template #extra>
         <n-space align="center" :size="8">
           <n-tag :bordered="false" size="small">{{ store.plans.length }} plans</n-tag>
@@ -45,36 +43,37 @@
           </template>
 
           <n-space vertical size="small">
-            <div class="muted">
-              Amount:
-              <b>{{ fmtAmount(p.amount) }}</b>
-            </div>
-            <div class="muted">
-              Period:
-              <b>{{ periodLabel(p.period) }}</b>
-            </div>
-            <div class="muted">
-              Start:
-              <b>{{ fmtDate(p.startDate) }}</b>
-            </div>
-            <div class="muted">
-              Fees:
-              <b>{{ fmtFee(p.feePct, p.feeFlat) }}</b>
-            </div>
+            <div class="muted">Amount: <b>{{ fmtAmount(p.amount) }}</b></div>
+            <div class="muted">Period: <b>{{ periodLabel(p.period) }}</b></div>
+            <div class="muted">Start: <b>{{ fmtDate(p.startDate) }}</b></div>
+            <div class="muted">Fees: <b>{{ fmtFee(p.feePct, p.feeFlat) }}</b></div>
 
             <n-space justify="space-between" align="center" style="margin-top: 6px">
               <n-space :size="8" align="center">
-                <n-switch :value="p.active" :round="false" aria-label="Toggle active" @update:value="toggle(p)">
+
+                <n-switch
+                  :value="p.active"
+                  :round="false"
+                  aria-label="Toggle active"
+                  :disabled="isBusy(p.id)"
+                  @update:value="toggle(p)"
+                >
                   <template #checked>On</template>
                   <template #unchecked>Off</template>
                 </n-switch>
               </n-space>
 
               <n-space :size="8">
-                <n-button size="small" @click="openEdit(p)">Edit</n-button>
-                <n-popconfirm positive-text="Delete" negative-text="Cancel" :show-icon="false" @positive-click="remove(p.id)">
+                <n-button size="small" :disabled="isBusy(p.id)" @click="openEdit(p)">Edit</n-button>
+
+                <n-popconfirm
+                  positive-text="Delete"
+                  negative-text="Cancel"
+                  :show-icon="false"
+                  @positive-click="remove(p.id)"
+                >
                   <template #trigger>
-                    <n-button size="small" tertiary type="error">Delete</n-button>
+                    <n-button size="small" tertiary type="error" :loading="isBusy(p.id)">Delete</n-button>
                   </template>
                   Remove <b>{{ p.asset }}</b> plan permanently?
                 </n-popconfirm>
@@ -87,8 +86,18 @@
 
     <RouterView style="display:none" />
 
-    <n-modal v-model:show="showModal" preset="card" :title="editing ? 'Edit plan' : 'New plan'" style="max-width: 520px">
-      <PlanForm :initial="editing ?? null" :submitting="submitting" @cancel="closeModal" @submit="onSubmit" />
+    <n-modal
+      v-model:show="showModal"
+      preset="card"
+      :title="editing ? 'Edit plan' : 'New plan'"
+      style="max-width: 520px"
+    >
+      <PlanForm
+        :initial="editing ?? null"
+        :submitting="saving"
+        @cancel="closeModal"
+        @submit="onSubmit"
+      />
     </n-modal>
   </div>
 </template>
@@ -104,14 +113,26 @@ import {
 import { useDcaStore } from '@stores/dca'
 import PlanForm from '../components/PlanForm.vue'
 import type { DcaPlan, DcaPlanInput } from '../../../types/dca'
+import { useAsyncState, useAsyncByKey } from '@composables/async'
 
-const route = useRoute()
-const router = useRouter()
-const store = useDcaStore()
+const route   = useRoute()
+const router  = useRouter()
+const store   = useDcaStore()
 const message = useMessage()
 
-const submitting = ref(false)
 const editing = ref<DcaPlan | null>(null)
+
+const { pending: saving, run: runSave } = useAsyncState(async (payload: DcaPlanInput) => {
+  if (editing.value) {
+    await store.updatePlan(editing.value.id, payload)
+    message.success('Plan updated')
+  } else {
+    await store.addPlan(payload)
+    message.success('Plan created')
+  }
+}, { onError: (e) => message.error((e as Error).message || 'Error') })
+
+const { isPending: isBusy, run: runByKey } = useAsyncByKey({ onError: (e) => message.error((e as Error).message || 'Error') })
 
 onMounted(async () => {
   await store.init()
@@ -154,67 +175,27 @@ function closeModal() {
 }
 
 async function onSubmit(payload: DcaPlanInput) {
-  submitting.value = true
-  try {
-    if (editing.value) {
-      await store.updatePlan(editing.value.id, payload)
-      message.success('Plan updated')
-    } else {
-      await store.addPlan(payload)
-      message.success('Plan created')
-    }
-    closeModal()
-  } catch (e) {
-    console.error(e)
-    message.error((e as Error).message || 'Error')
-  } finally {
-    submitting.value = false
-  }
+  await runSave(payload)
+  closeModal()
 }
 
 async function toggle(p: DcaPlan) {
-  try {
-    await store.toggleActive(p.id)
-  } catch (e) {
-    message.error((e as Error).message)
-  }
+  await runByKey(p.id, () => store.toggleActive(p.id))
 }
-
 async function remove(id: string) {
-  await store.removePlan(id)
+  await runByKey(id, () => store.removePlan(id))
   message.success('Deleted')
 }
 
 const amountFmt = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
-function fmtAmount(n: number) {
-  return amountFmt.format(n ?? 0)
-}
-function periodLabel(p: string) {
-  return p === 'weekly' ? 'Weekly' : p === 'monthly' ? 'Monthly' : p
-}
-function fmtDate(s?: string | null) {
-  if (!s) return '—'
-  return new Date(`${s}T00:00:00`).toLocaleDateString()
-}
-function fmtFee(pct?: number, flat?: number) {
-  const pctPart = `${pct ?? 0}%`
-  const flatPart = amountFmt.format(flat ?? 0)
-  return `${pctPart} + ${flatPart}`
-}
+function fmtAmount(n: number) { return amountFmt.format(n ?? 0) }
+function periodLabel(p: string) { return p === 'weekly' ? 'Weekly' : p === 'monthly' ? 'Monthly' : p }
+function fmtDate(s?: string | null) { return s ? new Date(`${s}T00:00:00`).toLocaleDateString() : '—' }
+function fmtFee(pct?: number, flat?: number) { return `${pct ?? 0}% + ${amountFmt.format(flat ?? 0)}` }
 </script>
 
 <style scoped>
-.page {
-  padding: 12px;
-}
-
-.title {
-  font-weight: 600;
-  letter-spacing: .2px;
-}
-
-.muted {
-  color: var(--naive-text-color-3);
-  font-size: 12px;
-}
+.page { padding: 12px; }
+.title { font-weight: 600; letter-spacing: .2px; }
+.muted { color: var(--naive-text-color-3); font-size: 12px; }
 </style>
