@@ -9,6 +9,11 @@ export function useAsyncState<TArgs extends unknown[], TResult>(
   const error = ref<unknown | null>(null)
 
   async function run(...args: TArgs): Promise<TResult> {
+    if (pending.value) {
+      return await new Promise((resolve, reject) =>
+        queueMicrotask(() => (pending.value ? reject(new Error('Busy')) : resolve(fn(...args))))
+      )
+    }
     pending.value = true
     error.value = null
     try {
@@ -25,19 +30,28 @@ export function useAsyncState<TArgs extends unknown[], TResult>(
   return { pending, error, run }
 }
 
-export function useAsyncByKey<TKey extends string | number>(
+type Key = string | number
+
+export function useAsyncByKey<TKey extends Key>(
   opts: { onError?: (e: unknown) => void } = {}
 ) {
-  const flags = reactive<Record<string, boolean>>({})
+  const flags = reactive<Record<Key, boolean>>({})
+  const errors = reactive<Record<Key, unknown>>({})
 
-  const isPending = (key: TKey): boolean => !!flags[String(key)]
+  const asKey = (k: TKey): Key => (typeof k === 'number' ? k : String(k))
+
+  const isPending = (key: TKey): boolean => !!flags[asKey(key)]
 
   async function run<T>(key: TKey, job: () => Promise<T>): Promise<T> {
-    const k = String(key)
+    const k = asKey(key)
+    if (flags[k]) return Promise.reject(new Error('Busy')) 
+
     flags[k] = true
+    errors[k] = null
     try {
       return await job()
     } catch (e) {
+      errors[k] = e
       opts.onError?.(e)
       throw e
     } finally {
@@ -45,5 +59,5 @@ export function useAsyncByKey<TKey extends string | number>(
     }
   }
 
-  return { isPending, run, flags }
+  return { isPending, run, flags, errors }
 }

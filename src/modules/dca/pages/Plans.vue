@@ -32,55 +32,13 @@
 
     <n-grid v-else cols="1 s:2 m:3" :x-gap="12" :y-gap="12">
       <n-grid-item v-for="p in store.plans" :key="p.id">
-        <n-card :bordered="true" size="small">
-          <template #header>
-            <n-space align="center" justify="space-between" style="width: 100%">
-              <div class="title">{{ p.asset }}</div>
-              <n-tag :type="p.active ? 'success' : 'default'" size="small" :bordered="false">
-                {{ p.active ? 'Active' : 'Paused' }}
-              </n-tag>
-            </n-space>
-          </template>
-
-          <n-space vertical size="small">
-            <div class="muted">Amount: <b>{{ fmtAmount(p.amount) }}</b></div>
-            <div class="muted">Period: <b>{{ periodLabel(p.period) }}</b></div>
-            <div class="muted">Start: <b>{{ fmtDate(p.startDate) }}</b></div>
-            <div class="muted">Fees: <b>{{ fmtFee(p.feePct, p.feeFlat) }}</b></div>
-
-            <n-space justify="space-between" align="center" style="margin-top: 6px">
-              <n-space :size="8" align="center">
-
-                <n-switch
-                  :value="p.active"
-                  :round="false"
-                  aria-label="Toggle active"
-                  :disabled="isBusy(p.id)"
-                  @update:value="toggle(p)"
-                >
-                  <template #checked>On</template>
-                  <template #unchecked>Off</template>
-                </n-switch>
-              </n-space>
-
-              <n-space :size="8">
-                <n-button size="small" :disabled="isBusy(p.id)" @click="openEdit(p)">Edit</n-button>
-
-                <n-popconfirm
-                  positive-text="Delete"
-                  negative-text="Cancel"
-                  :show-icon="false"
-                  @positive-click="remove(p.id)"
-                >
-                  <template #trigger>
-                    <n-button size="small" tertiary type="error" :loading="isBusy(p.id)">Delete</n-button>
-                  </template>
-                  Remove <b>{{ p.asset }}</b> plan permanently?
-                </n-popconfirm>
-              </n-space>
-            </n-space>
-          </n-space>
-        </n-card>
+        <PlanCard
+          :plan="p"
+          :busy="isBusy(p.id)"
+          @edit="openEdit(p)"
+          @toggle="toggle(p)"
+          @remove="remove(p.id)"
+        />
       </n-grid-item>
     </n-grid>
 
@@ -106,37 +64,35 @@
 import { onMounted, ref, computed, watchEffect } from 'vue'
 import { useRoute, useRouter, RouterView } from 'vue-router'
 import {
-  useMessage,
-  NButton, NCard, NEmpty, NGrid, NGridItem, NModal, NPageHeader, NSpace, NSwitch, NTag,
-  NSkeleton, NPopconfirm
+  NButton, NCard, NEmpty, NGrid, NGridItem, NModal, NPageHeader, NSpace, NTag, NSkeleton,
 } from 'naive-ui'
 import { useDcaStore } from '@stores/dca'
 import PlanForm from '../components/PlanForm.vue'
+import PlanCard from '../components/PlanCard.vue'
 import type { DcaPlan, DcaPlanInput } from '../../../types/dca'
 import { useAsyncState, useAsyncByKey } from '@composables/async'
+import { useNotify } from '@composables/notify'
 
 const route   = useRoute()
 const router  = useRouter()
 const store   = useDcaStore()
-const message = useMessage()
+const notify = useNotify()
 
 const editing = ref<DcaPlan | null>(null)
 
 const { pending: saving, run: runSave } = useAsyncState(async (payload: DcaPlanInput) => {
   if (editing.value) {
     await store.updatePlan(editing.value.id, payload)
-    message.success('Plan updated')
+    notify.success('Plan updated')
   } else {
     await store.addPlan(payload)
-    message.success('Plan created')
+    notify.success('Plan created')
   }
-}, { onError: (e) => message.error((e as Error).message || 'Error') })
+}, { onError: (e) => notify.error(e) })
 
-const { isPending: isBusy, run: runByKey } = useAsyncByKey({ onError: (e) => message.error((e as Error).message || 'Error') })
+const { isPending: isBusy, run: runByKey } = useAsyncByKey({ onError: (e) => notify.error(e) })
 
-onMounted(async () => {
-  await store.init()
-})
+onMounted(async () => { await store.init() })
 
 const isEmpty = computed(() => store.isReady && store.plans.length === 0)
 
@@ -156,7 +112,7 @@ watchEffect(() => {
     const id = String(route.params.id ?? '')
     editing.value = store.planById(id) ?? null
     if (!editing.value) {
-      message.error('Plan not found')
+      notify.error('Plan not found')
       router.replace({ name: 'plans' })
     }
   } else {
@@ -164,15 +120,9 @@ watchEffect(() => {
   }
 })
 
-async function openCreate() {
-  await router.push({ name: 'plan-new' })
-}
-async function openEdit(p: DcaPlan) {
-  await router.push({ name: 'plan-edit', params: { id: p.id } })
-}
-function closeModal() {
-  showModal.value = false
-}
+function openCreate() { router.push({ name: 'plan-new' }) }
+function openEdit(p: DcaPlan) { router.push({ name: 'plan-edit', params: { id: p.id } }) }
+function closeModal() { showModal.value = false }
 
 async function onSubmit(payload: DcaPlanInput) {
   await runSave(payload)
@@ -182,16 +132,11 @@ async function onSubmit(payload: DcaPlanInput) {
 async function toggle(p: DcaPlan) {
   await runByKey(p.id, () => store.toggleActive(p.id))
 }
+
 async function remove(id: string) {
   await runByKey(id, () => store.removePlan(id))
-  message.success('Deleted')
+  notify.success('Deleted')
 }
-
-const amountFmt = new Intl.NumberFormat(undefined, { style: 'currency', currency: 'USD', maximumFractionDigits: 2 })
-function fmtAmount(n: number) { return amountFmt.format(n ?? 0) }
-function periodLabel(p: string) { return p === 'weekly' ? 'Weekly' : p === 'monthly' ? 'Monthly' : p }
-function fmtDate(s?: string | null) { return s ? new Date(`${s}T00:00:00`).toLocaleDateString() : '—' }
-function fmtFee(pct?: number, flat?: number) { return `${pct ?? 0}% + ${amountFmt.format(flat ?? 0)}` }
 </script>
 
 <style scoped>

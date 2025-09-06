@@ -2,15 +2,15 @@
 <template>
   <n-form ref="formRef" :model="form" :rules="rules" label-placement="top" @submit.prevent="onSubmit">
     <n-form-item label="Asset" path="asset">
-      <n-input v-model:value="form.asset" placeholder="e.g. BTC" />
+      <n-input v-model:value="form.asset" placeholder="e.g. BTC" :disabled="submitting" />
     </n-form-item>
 
     <n-form-item label="Amount" path="amount">
-      <n-input-number v-model:value="form.amount" :min="0" :precision="2" />
+      <n-input-number v-model:value="form.amount" :min="0" :precision="2" :disabled="submitting" />
     </n-form-item>
 
     <n-form-item label="Period" path="period">
-      <n-select v-model:value="form.period" :options="periodOptions" />
+      <n-select v-model:value="form.period" :options="periodOptions" :disabled="submitting" />
     </n-form-item>
 
     <n-form-item label="Start date" path="startDate">
@@ -20,6 +20,7 @@
         type="date"
         :default-value="Date.now()"
         clearable
+        :disabled="submitting"
       />
     </n-form-item>
 
@@ -32,7 +33,7 @@
     </n-form-item>
 
     <n-form-item label="Active">
-      <n-switch v-model:value="form.active" />
+      <n-switch v-model:value="form.active" :disabled="submitting" />
     </n-form-item>
 
     <n-space justify="end">
